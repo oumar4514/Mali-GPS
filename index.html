@@ -1,0 +1,295 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#075c42">
+<title>MALI GPS — Le Mali en mouvement</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+:root {
+  --green: #075c42;
+  --light: #eaf7ef;
+  --yellow: #f6c945;
+  --red: #d94a49;
+  --dark: #14251e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--dark);
+  background: #f4f7f5;
+}
+header {
+  background: var(--green);
+  color: white;
+  padding: 18px 17px 20px;
+  border-radius: 0 0 23px 23px;
+}
+.brand { display:flex; align-items:center; gap:11px; }
+.logo {
+  width:46px; height:46px; border-radius:15px;
+  background:white; color:var(--green);
+  display:grid; place-items:center; font-size:25px;
+}
+h1 { margin:0; font-size:22px; letter-spacing:.5px; }
+.subtitle { margin-top:4px; font-size:12px; opacity:.85; }
+.flag { display:flex; gap:4px; margin-left:auto; }
+.flag span { width:8px; height:24px; border-radius:3px; }
+.flag span:nth-child(1) { background:#14a44d; }
+.flag span:nth-child(2) { background:#f8ce46; }
+.flag span:nth-child(3) { background:#d93c43; }
+main { padding:15px; max-width:850px; margin:auto; }
+.section-title { font-size:16px; font-weight:750; margin:4px 0 12px; }
+.searchbox {
+  display:flex; gap:8px; margin-bottom:14px;
+}
+input {
+  min-width:0; flex:1; border:1px solid #dbe4de;
+  border-radius:13px; padding:13px; font-size:14px;
+  background:white; outline-color:var(--green);
+}
+button {
+  border:0; cursor:pointer; font-weight:700;
+  font-size:13px; border-radius:12px; padding:12px;
+}
+.search-btn { background:var(--yellow); color:#302700; }
+#map {
+  height: min(53vh, 440px); min-height:300px;
+  border-radius:18px; border:1px solid #dbe4de;
+  overflow:hidden; z-index:1;
+}
+.locate {
+  width:100%; margin:10px 0 18px;
+  color:white; background:var(--green);
+  padding:14px;
+}
+.report-grid {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.report-btn {
+  background:white; border:1px solid #e0e9e3;
+  text-align:left; padding:14px 12px; min-height:86px;
+  box-shadow:0 3px 12px #12351b08;
+}
+.report-btn .emoji { font-size:22px; display:block; margin-bottom:7px; }
+.report-btn small { display:block; color:#6d7c73; font-weight:500; margin-top:4px; }
+.card {
+  background:white; border:1px solid #e0e9e3;
+  border-radius:16px; padding:15px; margin-top:17px;
+}
+.card h2 { font-size:16px; margin:0 0 9px; }
+#reports { font-size:13px; color:#526158; }
+.report-item { padding:10px 0; border-top:1px solid #edf0ed; }
+.report-item strong { color:var(--dark); }
+.notice { font-size:12px; color:#637168; line-height:1.5; }
+footer { text-align:center; padding:22px 12px; color:#7a887f; font-size:11px; }
+#status { font-size:12px; color:#e7f7ec; margin-top:12px; }
+.leaflet-popup-content { font-size:13px; }
+@media (min-width:650px) {
+  .report-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  header { padding-left:max(20px,calc((100% - 820px)/2)); }
+}
+</style>
+</head>
+
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">📍</div>
+    <div>
+      <h1>MALI GPS</h1>
+      <div class="subtitle">Le Mali en mouvement · Trouvons notre route</div>
+    </div>
+    <div class="flag"><span></span><span></span><span></span></div>
+  </div>
+  <div id="status">🟢 Carte prête · Active ta localisation quand tu le souhaites.</div>
+</header>
+
+<main>
+  <div class="section-title">Où veux-tu aller ?</div>
+  <div class="searchbox">
+    <input id="destination" placeholder="Ex. : Bamako, Tombouctou..." aria-label="Destination">
+    <button class="search-btn" onclick="searchPlace()">Rechercher</button>
+  </div>
+
+  <div id="map"></div>
+  <button class="locate" onclick="locateMe()">📍 Afficher ma position</button>
+
+  <div class="section-title">Signaler un problème routier</div>
+  <div class="report-grid">
+    <button class="report-btn" onclick="addReport('Inondation','🌊')">
+      <span class="emoji">🌊</span>Inondation
+      <small>Route sous l’eau</small>
+    </button>
+    <button class="report-btn" onclick="addReport('Nid-de-poule','🕳️')">
+      <span class="emoji">🕳️</span>Nid-de-poule
+      <small>Route endommagée</small>
+    </button>
+    <button class="report-btn" onclick="addReport('Route bloquée','🚧')">
+      <span class="emoji">🚧</span>Route bloquée
+      <small>Passage impossible</small>
+    </button>
+    <button class="report-btn" onclick="addReport('Obstacle','⚠️')">
+      <span class="emoji">⚠️</span>Obstacle
+      <small>Danger sur la route</small>
+    </button>
+  </div>
+
+  <div class="card">
+    <h2>📋 Signalements de cette session</h2>
+    <div id="reports">Aucun signalement pour le moment.</div>
+  </div>
+
+  <div class="card">
+    <h2>ℹ️ À savoir</h2>
+    <p class="notice">
+      La carte nécessite une connexion Internet. Autorise la localisation
+      de ton téléphone pour signaler un problème à ta position.
+      Pour l’instant, les signalements sont visibles uniquement dans cette
+      session sur cet appareil. Ils ne sont pas encore envoyés aux autres
+      utilisateurs. Vérifie toujours les conditions réelles avant de prendre
+      la route.
+    </p>
+  </div>
+</main>
+
+<footer>🇲🇱 MALI GPS · Un projet pour faciliter les déplacements au Mali.</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map').setView([17.0, -3.0], 5);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let myPosition = null;
+let pendingReport = null;
+let reportCount = 0;
+const reportMarkers = [];
+
+function setStatus(message) {
+  document.getElementById('status').textContent = message;
+}
+
+function locateMe() {
+  if (!navigator.geolocation) {
+    setStatus('La localisation n’est pas prise en charge par ce navigateur.');
+    return;
+  }
+  setStatus('Recherche de ta position…');
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      myPosition = [
+        position.coords.latitude,
+        position.coords.longitude
+      ];
+      map.setView(myPosition, 15);
+      L.circleMarker(myPosition, {
+        radius: 9, color: '#ffffff', weight: 3,
+        fillColor: '#087fdb', fillOpacity: 1
+      }).addTo(map).bindPopup('Ta position actuelle').openPopup();
+
+      setStatus('📍 Position trouvée !');
+      if (pendingReport) {
+        const item = pendingReport;
+        pendingReport = null;
+        placeReport(item.type, item.emoji, myPosition);
+      }
+    },
+    () => setStatus('Position indisponible. Vérifie les autorisations GPS.'),
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+function addReport(type, emoji) {
+  if (myPosition) {
+    placeReport(type, emoji, myPosition);
+    return;
+  }
+  pendingReport = { type, emoji };
+  setStatus('Autorise la localisation pour placer le signalement.');
+  locateMe();
+}
+
+function placeReport(type, emoji, coords) {
+  const note = prompt('Ajouter une précision (facultatif) :', '');
+  if (note === null) return;
+
+  reportCount++;
+  const marker = L.circleMarker(coords, {
+    radius: 9, color: '#ffffff', weight: 2,
+    fillColor: type === 'Inondation' ? '#168bd2' :
+      type === 'Route bloquée' ? '#d94a49' : '#f1ad22',
+    fillOpacity: 1
+  }).addTo(map);
+
+  const safeNote = note.trim().replace(/[&<>"']/g, c => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;',
+    '"':'&quot;', "'":'&#39;'
+  }[c]));
+
+  marker.bindPopup(
+    '<strong>' + emoji + ' ' + type + '</strong><br>' +
+    (safeNote || 'Aucune précision ajoutée') +
+    '<br><small>Signalement local de démonstration</small>'
+  );
+
+  reportMarkers.push(marker);
+  const list = document.getElementById('reports');
+  if (reportCount === 1) list.innerHTML = '';
+
+  const row = document.createElement('div');
+  row.className = 'report-item';
+  const title = document.createElement('strong');
+  title.textContent = emoji + ' ' + type;
+  const detail = document.createElement('div');
+  detail.textContent = safeNote || 'Aucune précision ajoutée';
+  row.append(title, detail);
+  list.prepend(row);
+
+  setStatus('Signalement ajouté sur cette carte.');
+}
+
+async function searchPlace() {
+  const query = document.getElementById('destination').value.trim();
+  if (!query) {
+    alert('Écris une ville ou une destination.');
+    return;
+  }
+  setStatus('Recherche de la destination…');
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ml&q='
+      + encodeURIComponent(query);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('Recherche indisponible');
+    const results = await response.json();
+    if (!results.length) {
+      setStatus('Destination introuvable au Mali. Essaie un autre nom.');
+      return;
+    }
+    const place = results[0];
+    const coords = [Number(place.lat), Number(place.lon)];
+    map.setView(coords, 12);
+    L.marker(coords).addTo(map)
+      .bindPopup('📍 ' + place.display_name)
+      .openPopup();
+    setStatus('Destination trouvée. Aucun itinéraire routier calculé pour le moment.');
+  } catch (error) {
+    setStatus('Recherche impossible pour le moment. Vérifie ta connexion.');
+  }
+}
+
+document.getElementById('destination').addEventListener('keydown', event => {
+  if (event.key === 'Enter') searchPlace();
+});
+</script>
+</body>
+</html>
